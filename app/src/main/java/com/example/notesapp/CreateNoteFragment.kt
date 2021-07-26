@@ -115,6 +115,8 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
 
         etNoteDesc.addTextChangedListener(
             afterTextChanged= {
+                //TODO DB operations are invoked for every character user types which is very frequent.
+                // Such frequent IO usage will affect performance in actual production apps. Instead of this, Auto save can be tried for every 5 secs or so
                 if (noteId != -1){
                     updateNoteDontClose()
                 }else{
@@ -125,6 +127,7 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
 
         imgDone.setOnClickListener {
             if (noteId != -1){
+                //TODO IO operations should not be done in main thread
                 updateNote()
             }else{
                 saveNote()
@@ -183,7 +186,7 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
 
     private fun updateNote(){
         launch {
-
+//TODO validation missing for updateNote or updateNoteDontClose. Also updateNote or updateNoteDontClose are almost same. avoid such code duplication
             context?.let {
                 var notes = NotesDatabase.getDatabase(it).noteDao().getSpecificNote(noteId)
 
@@ -275,7 +278,7 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
 
     }
     private fun saveNoteDontClose(){
-
+//  TODO Validation Toast msg is shown for every character I type, if title/subtitle is empty
         if (etNoteTitle.text.isNullOrEmpty()){
             Toast.makeText(context,"Note Title is Required",Toast.LENGTH_SHORT).show()
         }
@@ -345,7 +348,7 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
             var actionColor = p1!!.getStringExtra("action")
 
             when(actionColor!!){
-
+//TODO branches "Blue", "Yellow", "Purple", "Green", "Orange", "Black" are all the same. should be merged into a single branch
                 "Blue" -> {
                     selectedColor = p1.getStringExtra("selectedColor")!!
                     colorView.setBackgroundColor(Color.parseColor(selectedColor))

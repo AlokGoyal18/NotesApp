@@ -76,7 +76,7 @@ class HomeFragment : BaseFragment() {
             override fun onQueryTextChange(p0: String?): Boolean {
 
                 var tempArr = ArrayList<Notes>()
-
+                //TODO use arrNotes.filter instead of for loop iteration
                 for (arr in arrNotes){
                     if (arr.title!!.toLowerCase(Locale.getDefault()).contains(p0.toString())){
                         tempArr.add(arr)

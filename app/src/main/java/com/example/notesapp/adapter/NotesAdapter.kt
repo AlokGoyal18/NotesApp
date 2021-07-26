@@ -46,6 +46,7 @@ class NotesAdapter() :
         }
 
         if (arrList[position].imgPath != null){
+            //TODO Bitmap decoding shouldn't be done in main thread
             holder.itemView.imgNote.setImageBitmap(BitmapFactory.decodeFile(arrList[position].imgPath))
             holder.itemView.imgNote.visibility = View.VISIBLE
         }else{

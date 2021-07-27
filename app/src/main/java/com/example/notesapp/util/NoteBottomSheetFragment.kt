@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateInterpolator
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.notesapp.R
@@ -40,12 +41,10 @@ class NoteBottomSheetFragment : BottomSheetDialogFragment() {
         val behavior = param.behavior
 
         if (behavior is BottomSheetBehavior<*>){
-            behavior.setBottomSheetCallback(object  : BottomSheetBehavior.BottomSheetCallback(){
+            behavior.addBottomSheetCallback(object  : BottomSheetBehavior.BottomSheetCallback(){
                 override fun onSlide(bottomSheet: View, slideOffset: Float) {
-                    //TODO empty TODO() method calls will throw exception.
-                    // this should be either removed or replaces with proper handling
-                    // try slowly sliding the bottomsheet, app will crash
-                    TODO("Not yet implemented")
+                    view.animate().y(100F)
+                    view.animate().duration = 1000
                 }
 
                 override fun onStateChanged(bottomSheet: View, newState: Int) {

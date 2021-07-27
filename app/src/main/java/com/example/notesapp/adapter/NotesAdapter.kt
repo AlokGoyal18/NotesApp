@@ -36,7 +36,15 @@ class NotesAdapter() :
     override fun onBindViewHolder(holder: NotesViewHolder, position: Int) {
 
         holder.itemView.tvTitle.text = arrList[position].title
-        holder.itemView.tvDesc.text = arrList[position].noteText
+        if(arrList[position].noteText?.length!! >10)
+        {
+            holder.itemView.tvDesc.text = arrList[position].noteText?.substring(0,9)
+        }
+        else
+        {
+            holder.itemView.tvDesc.text = arrList[position].noteText
+        }
+
         holder.itemView.tvDateTime.text = arrList[position].dateTime
 
         if (arrList[position].color != null){
@@ -46,7 +54,6 @@ class NotesAdapter() :
         }
 
         if (arrList[position].imgPath != null){
-            //TODO Bitmap decoding shouldn't be done in main thread
             holder.itemView.imgNote.setImageBitmap(BitmapFactory.decodeFile(arrList[position].imgPath))
             holder.itemView.imgNote.visibility = View.VISIBLE
         }else{

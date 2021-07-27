@@ -58,7 +58,9 @@ class HomeFragment : BaseFragment() {
                 var notes = NotesDatabase.getDatabase(it).noteDao().getAllNotes()
                 notesAdapter!!.setData(notes)
                 arrNotes = notes as ArrayList<Notes>
-                recycler_view.adapter = notesAdapter
+                launch {
+                    recycler_view.adapter = notesAdapter
+                }
             }
         }
 

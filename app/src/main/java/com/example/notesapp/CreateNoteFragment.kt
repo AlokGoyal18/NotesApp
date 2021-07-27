@@ -1,6 +1,7 @@
 package com.example.notesapp
 
 import android.Manifest
+import android.app.Activity
 import android.app.Activity.RESULT_OK
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -16,6 +17,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.widget.addTextChangedListener
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.example.notesapp.database.NotesDatabase
@@ -28,6 +30,7 @@ import pub.devrel.easypermissions.EasyPermissions
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,EasyPermissions.RationaleCallbacks{
 
     var selectedColor = "#171C26"
@@ -37,6 +40,30 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
     private var selectedImagePath = ""
     private var webLink = ""
     private var noteId = -1
+    private var secondsToWait=System.currentTimeMillis() + 500
+
+    private var resultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data: Intent? = result.data
+                if (data != null){
+                    var selectedImageUrl = data.data
+                    if (selectedImageUrl != null){
+                        try {
+                            var inputStream = requireActivity().contentResolver.openInputStream(selectedImageUrl)
+                            var bitmap = BitmapFactory.decodeStream(inputStream)
+                            imgNote.setImageBitmap(bitmap)
+                            imgNote.visibility = View.VISIBLE
+                            layoutImage.visibility = View.VISIBLE
+
+                            selectedImagePath = getPathFromUri(selectedImageUrl)!!
+                        }catch (e:Exception){
+                            Toast.makeText(requireContext(),e.message,Toast.LENGTH_SHORT).show()
+                        }
+
+                    }
+                }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +94,6 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-
         if (noteId != -1){
 
             launch {
@@ -79,7 +105,7 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
                     etNoteDesc.setText(notes.noteText)
                     if (notes.imgPath != ""){
                         selectedImagePath = notes.imgPath!!
-                        imgNote.setImageBitmap(BitmapFactory.decodeFile(notes.imgPath))
+                        imgNote.setImageBitmap(BitmapFactory.decodeFile(notes.imgPath.toString()))
                         layoutImage.visibility = View.VISIBLE
                         imgNote.visibility = View.VISIBLE
                         imgDelete.visibility = View.VISIBLE
@@ -113,24 +139,34 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
 
         tvDateTime.text = currentDate
 
-        etNoteDesc.addTextChangedListener(
-            afterTextChanged= {
-                //TODO DB operations are invoked for every character user types which is very frequent.
-                // Such frequent IO usage will affect performance in actual production apps. Instead of this, Auto save can be tried for every 5 secs or so
-                if (noteId != -1){
-                    updateNoteDontClose()
-                }else{
-                    saveNoteDontClose()
+
+
+            etNoteDesc.addTextChangedListener(
+                afterTextChanged = {
+                    if(System.currentTimeMillis() >= this.secondsToWait) {
+                        if (noteId != -1) {
+                            launch {
+                                updateNote(false)
+                            }
+                        } else {
+                            launch {
+                                saveNote(false)
+                            }
+                        }
+                        this.secondsToWait = System.currentTimeMillis() + 5000
+                    }
                 }
-            }
             )
 
         imgDone.setOnClickListener {
             if (noteId != -1){
-                //TODO IO operations should not be done in main thread
-                updateNote()
+                launch {
+                    updateNote(true)
+                }
             }else{
-                saveNote()
+                launch {
+                    saveNote(true)
+                }
             }
         }
 
@@ -184,70 +220,62 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
     }
 
 
-    private fun updateNote(){
-        launch {
-//TODO validation missing for updateNote or updateNoteDontClose. Also updateNote or updateNoteDontClose are almost same. avoid such code duplication
-            context?.let {
-                var notes = NotesDatabase.getDatabase(it).noteDao().getSpecificNote(noteId)
-
-                notes.title = etNoteTitle.text.toString()
-                notes.subTitle = etNoteSubTitle.text.toString()
-                notes.noteText = etNoteDesc.text.toString()
-                notes.dateTime = currentDate
-                notes.color = selectedColor
-                notes.imgPath = selectedImagePath
-                notes.webLink = webLink
-
-                NotesDatabase.getDatabase(it).noteDao().updateNote(notes)
-                etNoteTitle.setText("")
-                etNoteSubTitle.setText("")
-                etNoteDesc.setText("")
-                layoutImage.visibility = View.GONE
-                imgNote.visibility = View.GONE
-                tvWebLink.visibility = View.GONE
-                requireActivity().supportFragmentManager.popBackStack()
-            }
-        }
-    }
-
-    private fun updateNoteDontClose(){
-        launch {
-
-            context?.let {
-                var notes = NotesDatabase.getDatabase(it).noteDao().getSpecificNote(noteId)
-
-                notes.title = etNoteTitle.text.toString()
-                notes.subTitle = etNoteSubTitle.text.toString()
-                notes.noteText = etNoteDesc.text.toString()
-                notes.dateTime = currentDate
-                notes.color = selectedColor
-                notes.imgPath = selectedImagePath
-                notes.webLink = webLink
-
-                NotesDatabase.getDatabase(it).noteDao().updateNote(notes)
-//                etNoteTitle.setText("")
-//                etNoteSubTitle.setText("")
-//                etNoteDesc.setText("")
-//                layoutImage.visibility = View.GONE
-//                imgNote.visibility = View.GONE
-//                tvWebLink.visibility = View.GONE
-//                requireActivity().supportFragmentManager.popBackStack()
-            }
-        }
-    }
-
-
-    private fun saveNote(){
-
-        if (etNoteTitle.text.isNullOrEmpty()){
+    private fun updateNote(opClick:Boolean){
+        if (etNoteTitle.text.trim().isNullOrEmpty()){
             Toast.makeText(context,"Note Title is Required",Toast.LENGTH_SHORT).show()
         }
-        else if (etNoteSubTitle.text.isNullOrEmpty()){
+        else if (etNoteSubTitle.text.trim().isNullOrEmpty()){
 
             Toast.makeText(context,"Note Sub Title is Required",Toast.LENGTH_SHORT).show()
         }
 
-        else if (etNoteDesc.text.isNullOrEmpty()){
+        else if (etNoteDesc.text.trim().isNullOrEmpty()){
+
+            Toast.makeText(context,"Note Description is Required",Toast.LENGTH_SHORT).show()
+        }
+
+        else {
+
+            launch {
+                context?.let {
+                    var notes = NotesDatabase.getDatabase(it).noteDao().getSpecificNote(noteId)
+
+                    notes.title = etNoteTitle.text.toString()
+                    notes.subTitle = etNoteSubTitle.text.toString()
+                    notes.noteText = etNoteDesc.text.toString()
+                    notes.dateTime = currentDate
+                    notes.color = selectedColor
+                    notes.imgPath = selectedImagePath
+                    notes.webLink = webLink
+
+                    NotesDatabase.getDatabase(it).noteDao().updateNote(notes)
+                    if (opClick) {
+                        etNoteTitle.setText("")
+                        etNoteSubTitle.setText("")
+                        etNoteDesc.setText("")
+                        layoutImage.visibility = View.GONE
+                        imgNote.visibility = View.GONE
+                        tvWebLink.visibility = View.GONE
+                        requireActivity().supportFragmentManager.popBackStack()
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    private fun saveNote(opClick: Boolean){
+
+        if (etNoteTitle.text.trim().isNullOrEmpty()){
+            Toast.makeText(context,"Note Title is Required",Toast.LENGTH_SHORT).show()
+        }
+        else if (etNoteSubTitle.text.trim().isNullOrEmpty()){
+
+            Toast.makeText(context,"Note Sub Title is Required",Toast.LENGTH_SHORT).show()
+        }
+
+        else if (etNoteDesc.text.trim().isNullOrEmpty()){
 
             Toast.makeText(context,"Note Description is Required",Toast.LENGTH_SHORT).show()
         }
@@ -265,59 +293,21 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
             notes.webLink = webLink
             context?.let {
                 NotesDatabase.getDatabase(it).noteDao().insertNotes(notes)
-                etNoteTitle.setText("")
-                etNoteSubTitle.setText("")
-                etNoteDesc.setText("")
-                layoutImage.visibility = View.GONE
-                imgNote.visibility = View.GONE
-                tvWebLink.visibility = View.GONE
-                requireActivity().supportFragmentManager.popBackStack()
-            }
-        }
-        }
-
-    }
-    private fun saveNoteDontClose(){
-//  TODO Validation Toast msg is shown for every character I type, if title/subtitle is empty
-        if (etNoteTitle.text.isNullOrEmpty()){
-            Toast.makeText(context,"Note Title is Required",Toast.LENGTH_SHORT).show()
-        }
-        else if (etNoteSubTitle.text.isNullOrEmpty()){
-
-            Toast.makeText(context,"Note Sub Title is Required",Toast.LENGTH_SHORT).show()
-        }
-
-        else if (etNoteDesc.text.isNullOrEmpty()){
-
-            Toast.makeText(context,"Note Description is Required",Toast.LENGTH_SHORT).show()
-        }
-
-        else{
-
-            launch {
-                var notes = Notes()
-                notes.title = etNoteTitle.text.toString()
-                notes.subTitle = etNoteSubTitle.text.toString()
-                notes.noteText = etNoteDesc.text.toString()
-                notes.dateTime = currentDate
-                notes.color = selectedColor
-                notes.imgPath = selectedImagePath
-                notes.webLink = webLink
-                context?.let {
-                    NotesDatabase.getDatabase(it).noteDao().insertNotes(notes)
-                    noteId=NotesDatabase.getDatabase(it).noteDao().getNoteId()
-//                    etNoteTitle.setText("")
-//                    etNoteSubTitle.setText("")
-//                    etNoteDesc.setText("")
-//                    layoutImage.visibility = View.GONE
-//                    imgNote.visibility = View.GONE
-//                    tvWebLink.visibility = View.GONE
-//                    requireActivity().supportFragmentManager.popBackStack()
+                if(opClick) {
+                    etNoteTitle.setText("")
+                    etNoteSubTitle.setText("")
+                    etNoteDesc.setText("")
+                    layoutImage.visibility = View.GONE
+                    imgNote.visibility = View.GONE
+                    tvWebLink.visibility = View.GONE
+                    requireActivity().supportFragmentManager.popBackStack()
                 }
             }
         }
+        }
 
     }
+
 
     private fun deleteNote(){
 
@@ -447,7 +437,8 @@ class CreateNoteFragment : BaseFragment(),EasyPermissions.PermissionCallbacks,Ea
     private fun pickImageFromGallery(){
         var intent = Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
         if (intent.resolveActivity(requireActivity().packageManager) != null){
-            startActivityForResult(intent,REQUEST_CODE_IMAGE)
+           // startActivityForResult(intent,REQUEST_CODE_IMAGE)
+            resultLauncher.launch(intent)
         }
     }
 
